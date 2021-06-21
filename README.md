@@ -1,7 +1,7 @@
 # melvor-idle-userscripts
 My userscripts for Melvor Idle
 
-[![Melvor Idle - AutoFarm](https://img.shields.io/badge/dynamic/json?label=Melvor%20Idle%20-%20AutoFarm&query=version&prefix=v&url=https%3A%2F%2Fgreasyfork.org%2Fscripts%2F414241.json)](https://greasyfork.org/en/scripts/414241-melvor-idle-automastery)
+[![Melvor Idle - AutoFarm](https://img.shields.io/badge/dynamic/json?label=Melvor%20Idle%20-%20AutoFarm&query=version&prefix=v&url=https%3A%2F%2Fgreasyfork.org%2Fscripts%2F427692.json)](https://greasyfork.org/en/scripts/427692-melvor-idle-autofarm)
 
 [![Melvor Idle - AutoLoot](https://img.shields.io/badge/dynamic/json?label=Melvor%20Idle%20-%20AutoLoot&query=version&prefix=v&url=https%3A%2F%2Fgreasyfork.org%2Fscripts%2F427913.json)](https://greasyfork.org/en/scripts/427913-melvor-idle-autoloot)
 
