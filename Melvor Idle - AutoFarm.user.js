@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - AutoFarm
 // @description Automates farming
-// @version     1.1
+// @version     1.2
 // @namespace   Visua
 // @match       https://*.melvoridle.com/*
 // @exclude     https://wiki.melvoridle.com*
@@ -45,18 +45,18 @@
             },
 
             equipSwap: function (slotName, itemId = -1) {
-                const currentlyEquippedItemId = currentEquipmentInSlot(slotName);
+                const currentlyEquippedItemId = this.currentEquipmentInSlot(slotName);
                 let didSwap = false;
-                if (equipSwapState[slotName].swapped) {
-                    didSwap = equipFromBank(equipSwapState[slotName].originalId);
+                if (this.equipSwapState[slotName].swapped) {
+                    didSwap = this.equipFromBank(this.equipSwapState[slotName].originalId);
                 } else if (itemId > -1) {
-                    didSwap = equipFromBank(itemId);
+                    didSwap = this.equipFromBank(itemId);
                 }
                 if (didSwap) {
-                    if (!equipSwapState[slotName].swapped) {
-                        equipSwapState[slotName].originalId = currentlyEquippedItemId;
+                    if (!this.equipSwapState[slotName].swapped) {
+                        this.equipSwapState[slotName].originalId = currentlyEquippedItemId;
                     }
-                    equipSwapState[slotName].swapped = !equipSwapState[slotName].swapped;
+                    this.equipSwapState[slotName].swapped = !this.equipSwapState[slotName].swapped;
                 }
             },
         };
@@ -221,12 +221,12 @@
             });
         }
 
-        function equipIfNotEquipped(item, slot) {
-            if (utils.currentEquipmentInSlot(slot) === item) {
+        function equipIfNotEquipped(slotName, itemId) {
+            if (utils.currentEquipmentInSlot(slotName) === itemId) {
                 return true;
             }
-            if (checkBankForItem(item)) {
-                utils.equipSwap(item, slot);
+            if (checkBankForItem(itemId)) {
+                utils.equipSwap(slotName, itemId);
                 return true;
             }
             return false;
