@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - AutoFarm
 // @description Automates farming
-// @version     1.2
+// @version     1.3
 // @namespace   Visua
 // @match       https://*.melvoridle.com/*
 // @exclude     https://wiki.melvoridle.com*
@@ -35,17 +35,13 @@
                 return true;
             },
 
-            currentEquipmentInSlot: function (slotName) {
-                return equipmentSets[selectedEquipmentSet].equipment[CONSTANTS.equipmentSlot[slotName]];
-            },
-
             equipSwapState: {
                 Ring: {},
                 Cape: {},
             },
 
             equipSwap: function (slotName, itemId = -1) {
-                const currentlyEquippedItemId = this.currentEquipmentInSlot(slotName);
+                const currentlyEquippedItemId = equippedItems[CONSTANTS.equipmentSlot[slotName]];
                 let didSwap = false;
                 if (this.equipSwapState[slotName].swapped) {
                     didSwap = this.equipFromBank(this.equipSwapState[slotName].originalId);
@@ -222,7 +218,7 @@
         }
 
         function equipIfNotEquipped(slotName, itemId) {
-            if (utils.currentEquipmentInSlot(slotName) === itemId) {
+            if (equippedItems.includes(itemId)) {
                 return true;
             }
             if (checkBankForItem(itemId)) {
