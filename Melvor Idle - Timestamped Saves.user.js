@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - Timestamped Saves
 // @description Adds character name and a timestamp to the default filename when downloading a save
-// @version     2.7
+// @version     2.8
 // @namespace   Visua
 // @match       https://melvoridle.com/*
 // @match       https://www.melvoridle.com/*
@@ -29,7 +29,7 @@
                     saveString = backupSave;
                 }
                 const save = JSON.parse(pako.ungzip(atob(saveString), { to: 'string' }));
-                if (save.username !== username) {
+                if (Object.keys(save).length < 3) {
                     throw new Error('Save might not contain any data');
                 }
             } catch (e) {
