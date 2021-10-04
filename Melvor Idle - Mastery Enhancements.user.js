@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - Mastery Enhancements
 // @description Adds mastery pool progress bars to skills in the menu
-// @version     1.4
+// @version     1.5
 // @namespace   Visua
 // @match       https://*.melvoridle.com/*
 // @exclude     https://wiki.melvoridle.com*
@@ -59,7 +59,7 @@
     }
 
     function loadScript() {
-        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded && !currentlyCatchingUp) {
+        if (window.isLoaded) {
             clearInterval(interval);
             console.log('Loading Mastery Enhancements');
             addProgressBars();
