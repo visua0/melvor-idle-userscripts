@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - Timestamped Saves
 // @description Adds character name and a timestamp to the default filename when downloading a save
-// @version     2.9
+// @version     2.10
 // @namespace   Visua
 // @match       https://melvoridle.com/*
 // @match       https://www.melvoridle.com/*
@@ -71,7 +71,7 @@
     }
 
     function loadScript() {
-        if (window.isLoaded) {
+        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded) {
             clearInterval(interval);
             console.log('Loading Timestamped Saves');
             replaceDownloadSave();

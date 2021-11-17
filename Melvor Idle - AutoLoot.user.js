@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - AutoLoot
 // @description Automatically collects loot
-// @version     1.0
+// @version     1.1
 // @namespace   Visua
 // @match       https://*.melvoridle.com/*
 // @exclude     https://wiki.melvoridle.com*
@@ -19,14 +19,14 @@
 
     function autoLoot() {
         setInterval(() => {
-            if (droppedLoot.length) {
-                lootAll();
+            if (player.manager.loot.drops.length) {
+                player.manager.loot.lootAll();
             }
         }, 5000);
     }
 
     function loadScript() {
-        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded && !currentlyCatchingUp) {
+        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded) {
             clearInterval(interval);
             console.log('Loading AutoLoot');
             autoLoot();

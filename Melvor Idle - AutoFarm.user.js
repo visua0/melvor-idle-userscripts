@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - AutoFarm
 // @description Automates farming
-// @version     1.3
+// @version     1.4
 // @namespace   Visua
 // @match       https://*.melvoridle.com/*
 // @exclude     https://wiki.melvoridle.com*
@@ -19,40 +19,44 @@
 
     function startAutoFarm() {
         const utils = {
-            getBankQty: function (itemId) {
-                const bankId = getBankId(itemId);
-                if (bankId === -1) {
-                    return 0;
-                }
-                return bank[bankId].qty;
-            },
-
-            equipFromBank: function (itemId) {
+            equipFromBank: function (itemId, quantity = 1) {
                 if (!checkBankForItem(itemId)) {
                     return false;
                 }
-                equipItem(itemId, 1, selectedEquipmentSet);
-                return true;
+                try {
+                    return combatManager.player.equipItem(itemId, combatManager.player.selectedEquipmentSet, 'Default', quantity);
+                } catch (e) {
+                    console.error('AutoFarm: Error trying to equip item.', e);
+                    return false;
+                }
             },
 
             equipSwapState: {
                 Ring: {},
                 Cape: {},
+                Gloves: {},
+                Quiver: {},
             },
 
-            equipSwap: function (slotName, itemId = -1) {
-                const currentlyEquippedItemId = equippedItems[CONSTANTS.equipmentSlot[slotName]];
-                let didSwap = false;
+            equipSwap: function (slotName, itemId) {
                 if (this.equipSwapState[slotName].swapped) {
-                    didSwap = this.equipFromBank(this.equipSwapState[slotName].originalId);
-                } else if (itemId > -1) {
-                    didSwap = this.equipFromBank(itemId);
+                    return;
                 }
-                if (didSwap) {
-                    if (!this.equipSwapState[slotName].swapped) {
-                        this.equipSwapState[slotName].originalId = currentlyEquippedItemId;
-                    }
-                    this.equipSwapState[slotName].swapped = !this.equipSwapState[slotName].swapped;
+                const currentlyEquippedItemId = combatManager.player.equipment.slots[slotName].item.id;
+                const currentQuantity = combatManager.player.equipment.slots[slotName].quantity;
+                let quantityToEquip = slotName === 'Quiver' ? getBankQty(itemId) : 1;
+                if (this.equipFromBank(itemId, quantityToEquip)) {
+                    this.equipSwapState[slotName].originalId = currentlyEquippedItemId;
+                    this.equipSwapState[slotName].quantity = currentQuantity;
+                    this.equipSwapState[slotName].swapped = true;
+                }
+            },
+
+            equipSwapBack: function (slotName) {
+                if (this.equipSwapState[slotName].swapped && (this.equipSwapState[slotName].originalId === -1 ||
+                    this.equipFromBank(this.equipSwapState[slotName].originalId, this.equipSwapState[slotName].quantity))) {
+                    this.equipSwapState[slotName].originalId = undefined;
+                    this.equipSwapState[slotName].swapped = false;
                 }
             },
         };
@@ -60,7 +64,7 @@
         const id = 'auto-farm';
         const settingsVersion = 2;
         const patchTypes = ['allotments', 'herbs', 'trees'];
-        const toPatchType = { Allotment: patchTypes[0], Herb: patchTypes[1], Tree: patchTypes[2] };
+        const toPatchType = { ALLOTMENT: patchTypes[0], HERB: patchTypes[1], TREE: patchTypes[2] };
         const priorityTypes = {
             custom: { id: 'custom', description: 'Custom priority', tooltip: 'Drag seeds to change their priority' },
             mastery: {
@@ -95,16 +99,6 @@
                 useGloop: true,
             };
         });
-
-        function canBuyCompost(n = 5) {
-            if (equippedItems.includes(CONSTANTS.item.Farming_Skillcape) ||
-                equippedItems.includes(CONSTANTS.item.Max_Skillcape) ||
-                equippedItems.includes(CONSTANTS.item.Cape_of_Completion)) {
-                return false;
-            }
-            const cost = n * items[CONSTANTS.item.Compost].buysFor;
-            return gp > cost;
-        }
 
         function findNextSeed(patch, patchId) {
             // Find next seed in bank according to priority
@@ -166,13 +160,13 @@
             }
 
             if (!patch.gloop) {
-                if (settings[toPatchType[patch.type]].useGloop && utils.getBankQty(CONSTANTS.item.Weird_Gloop) > 1) {
+                if (settings[toPatchType[patch.type]].useGloop && getBankQty(CONSTANTS.item.Weird_Gloop) > 1) {
                     addGloop(areaId, patchId);
                 } else if (
                     getSeedMasteryLevel(nextSeed) < 50 &&
                     getMasteryPoolProgress(CONSTANTS.skill.Farming) < masteryCheckpoints[1]
                 ) {
-                    if (canBuyCompost()) {
+                    if (!playerModifiers.freeCompost && gp > n * items[CONSTANTS.item.Compost].buysFor) {
                         getCompost();
                     }
                     addCompost(areaId, patchId, 5);
@@ -199,13 +193,13 @@
                 }
             }
             if (anyPatchReady) {
-                swapFarmingEquipment(true);
+                swapToFarmingEquipment();
                 for (let i = 0; i < newFarmingAreas.length; i++) {
                     for (let j = 0; j < newFarmingAreas[i].patches.length; j++) {
                         handlePatch(i, j);
                     }
                 }
-                swapFarmingEquipment(false);
+                swapBackEquipment();
             }
 
             patchTypes.forEach((patchType) => {
@@ -218,39 +212,40 @@
         }
 
         function equipIfNotEquipped(slotName, itemId) {
-            if (equippedItems.includes(itemId)) {
+            if (combatManager.player.equipment.slotMap.has(itemId)) {
                 return true;
             }
-            if (checkBankForItem(itemId)) {
+            if (checkRequirements(items[itemId].equipRequirements) && checkBankForItem(itemId)) {
                 utils.equipSwap(slotName, itemId);
                 return true;
             }
             return false;
         }
 
-        function swapFarmingEquipment(swapTo = true) {
+        function swapToFarmingEquipment() {
             if (!settings.swapEquipment) {
                 return;
             }
 
-            if (swapTo) {
-                equipIfNotEquipped('Ring', CONSTANTS.item.Aorpheats_Signet_Ring);
-                (checkCompletionCapeRequirements() && equipIfNotEquipped('Cape', CONSTANTS.item.Cape_of_Completion)) ||
-                    (checkMaxCapeRequirements() && equipIfNotEquipped('Cape', CONSTANTS.item.Max_Skillcape)) ||
-                    equipIfNotEquipped('Cape', CONSTANTS.item.Farming_Skillcape);
-            } else {
-                if (utils.equipSwapState.Ring.swapped) {
-                    utils.equipSwap('Ring');
-                }
-                if (utils.equipSwapState.Cape.swapped) {
-                    utils.equipSwap('Cape');
-                }
+            equipIfNotEquipped('Ring', CONSTANTS.item.Aorpheats_Signet_Ring);
+            equipIfNotEquipped('Cape', CONSTANTS.item.Cape_of_Completion) ||
+                equipIfNotEquipped('Cape', CONSTANTS.item.Max_Skillcape) ||
+                equipIfNotEquipped('Cape', CONSTANTS.item.Farming_Skillcape);
+            equipIfNotEquipped('Gloves', CONSTANTS.item.Bobs_Gloves);
+            equipIfNotEquipped('Quiver', CONSTANTS.item.Seed_Pouch);
+        }
+
+        function swapBackEquipment() {
+            if (!settings.swapEquipment) {
+                return;
             }
+
+            Object.keys(utils.equipSwapState).forEach(slot => utils.equipSwapBack(slot));
         }
 
         function getCompost() {
             if (checkBankForItem(CONSTANTS.item.Compost)) {
-                const qty = utils.getBankQty(CONSTANTS.item.Compost);
+                const qty = getBankQty(CONSTANTS.item.Compost);
                 if (qty < 5) {
                     buyQty = 5 - qty;
                     buyShopItem('Materials', CONSTANTS.shop.materials.Compost, true);
@@ -266,7 +261,7 @@
         }
 
         function getSeedCropQuantity(seedId) {
-            return utils.getBankQty(items[seedId].grownItemID);
+            return getBankQty(items[seedId].grownItemID);
         }
 
         function getSeedMasteryLevel(seedId) {
@@ -564,13 +559,15 @@
                     button.find(`.${id}-seed-selector-icon`).html(selected.find('span').html());
                 }
 
+                $('#farming-area-container h3 ~ .block-options').remove();
+
                 $('#farming-area-container h3').each((patchId, e) => {
                     const header = $(e);
                     if (header.siblings().length) {
                         // Seed selector already exists
                         return;
                     }
-                    const patchType = toPatchType[header.text()];
+                    const patchType = toPatchType[header.text().toUpperCase()];
                     if (patchType === undefined) {
                         // Locked patch
                         return;
@@ -612,7 +609,7 @@
     // }
 
     function loadScript() {
-        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded && !currentlyCatchingUp) {
+        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded) {
             clearInterval(interval);
             console.log('Loading AutoFarm');
             startAutoFarm();

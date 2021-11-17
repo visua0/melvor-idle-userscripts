@@ -59,7 +59,7 @@
     }
 
     function loadScript() {
-        if (window.isLoaded) {
+        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded) {
             clearInterval(interval);
             console.log('Loading Mastery Enhancements');
             addProgressBars();

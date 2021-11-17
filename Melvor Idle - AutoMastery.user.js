@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - AutoMastery
 // @description Automatically spends mastery when a pool is about to fill up
-// @version     3.0
+// @version     3.1
 // @namespace   Visua
 // @match       https://melvoridle.com/*
 // @match       https://www.melvoridle.com/*
@@ -16,52 +16,70 @@
 })(() => {
     'use strict';
 
+    /**
+     *
+     * @param {number} skill
+     * @param {number[]} masteries
+     * @returns {{ id: number, xp: number, toNext: number }[]}
+     */
+    function getNonMaxedMasteries(skill, masteries) {
+        return masteries.map(id => ({ id, xp: MASTERY[skill].xp[id], toNext: getMasteryXpForNextLevel(skill, id) })).filter(m => m.toNext > 0);
+    }
+
+    /**
+     *
+     * @param {{ id: number, xp: number, toNext: number }[]} masteries
+     * @param {number} xpOverCheckpoint
+     * @param {boolean} selectLowest
+     * @returns
+     */
+    function getAffordableMastery(masteries, xpOverCheckpoint, selectLowest) {
+        return masteries
+            .reduce(
+                (best, m) => {
+                    if (m.toNext <= xpOverCheckpoint && (best.id === -1 || (selectLowest ? m.xp <= best.xp : m.xp >= best.xp))) {
+                        return m;
+                    } else {
+                        return best;
+                    }
+                },
+                { id: -1, xp: 0, toNext: 0 }
+            ).id;
+    }
+
     function autoSpendMasteryPool(skill, xpToBeAdded) {
         const poolXp = MASTERY[skill].pool;
         const poolMax = getMasteryPoolTotalXP(skill);
         if (poolXp + xpToBeAdded >= poolMax * AUTOMASTERY.settings[skill].spendWhenPoolReaches / 100) {
-            const _masteryPoolLevelUp = masteryPoolLevelUp;
-            masteryPoolLevelUp = 1;
-
             const xpOverCheckpoint = (poolXp + xpToBeAdded) - (poolMax * AUTOMASTERY.settings[skill].threshold / 100);
 
             let masteryToLevel = -1;
             let reason = '';
-            let masteries = [];
 
             // Only look at selected non-maxed masteries
-            masteries = AUTOMASTERY.settings[skill].selectedMasteries.map(id => ({ id, xp: MASTERY[skill].xp[id] })).filter(m => m.xp < 13034432);
+            let masteries = getNonMaxedMasteries(skill, AUTOMASTERY.settings[skill].selectedMasteries);
             if (!masteries.length) {
                 // If no (non-maxed) masteries selected look at all masteries
-                masteries = MASTERY[skill].xp.map((xp, id) => ({ id, xp }));
+                masteries = getNonMaxedMasteries(skill, MASTERY[skill].xp.map((_, id) => id));
+            }
+
+            if (!masteries.length) {
+                return;
             }
 
             if (masteryToLevel === -1) {
                 // Find the lowest or highest (depending on setting) mastery that can be afforded
-                masteryToLevel = masteries
-                    .reduce(
-                        (best, m) => {
-                            const toNext = getMasteryXpForNextLevel(skill, m.id);
-                            if (toNext > 0 && toNext <= xpOverCheckpoint && (best.id === -1 || (AUTOMASTERY.settings[skill].selectLowest ? m.xp <= best.xp : m.xp >= best.xp))) {
-                                return m;
-                            } else {
-                                return best;
-                            }
-                        },
-                        { id: -1, xp: 0 }
-                    ).id;
+                masteryToLevel = getAffordableMastery(masteries, xpOverCheckpoint, AUTOMASTERY.settings[skill].selectLowest);
                 reason = `was the ${AUTOMASTERY.settings[skill].selectLowest ? 'lowest' : 'highest'} that could be leveled without dropping below ${AUTOMASTERY.settings[skill].threshold}%`;
             }
 
             if (masteryToLevel === -1) {
                 // Find the cheapest mastery since we can't afford any
-                const min = masteries
-                    .map(m => ({ id: m.id, toNext: getMasteryXpForNextLevel(skill, m.id) }))
-                    .reduce((min, m) => ((m.toNext > 0 && m.toNext <= min.toNext) || min.toNext === 0 ? m : min));
-                if (min.toNext > 0 && min.toNext < poolXp) {
-                    masteryToLevel = min.id;
-                    reason = `was the cheapest to level and we are forced to drop below ${AUTOMASTERY.settings[skill].threshold}%`;
+                const cheapest = masteries.reduce((cheapest, m) => m.toNext <= cheapest.toNext ? m : cheapest);
+                if (cheapest.toNext < poolXp) {
+                    masteryToLevel = cheapest.id;
                 }
+                reason = `was the cheapest to level and we are forced to drop below ${AUTOMASTERY.settings[skill].threshold}%`;
             }
 
             if (masteryToLevel !== -1) {
@@ -79,7 +97,6 @@
                 } catch (e) {
                     console.error(e);
                 } finally {
-                    masteryPoolLevelUp = _masteryPoolLevelUp;
                     showSpendMasteryXP = _showSpendMasteryXP;
                 }
                 autoSpendMasteryPool(skill, xpToBeAdded);
@@ -147,6 +164,8 @@
         // Inject
         const _addMasteryXPToPool = addMasteryXPToPool;
         addMasteryXPToPool = (...args) => {
+            const _masteryPoolLevelUp = masteryPoolLevelUp;
+            masteryPoolLevelUp = 1;
             try {
                 const skill = args[0];
                 let xpToBeAdded = args[1];
@@ -162,13 +181,14 @@
             } catch (e) {
                 console.error(e);
             } finally {
+                masteryPoolLevelUp = _masteryPoolLevelUp;
                 _addMasteryXPToPool(...args);
             }
         };
     }
 
     function loadScript() {
-        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded && !currentlyCatchingUp) {
+        if (typeof confirmedLoaded !== 'undefined' && confirmedLoaded) {
             clearInterval(interval);
             console.log('Loading AutoMastery');
             autoMastery();
