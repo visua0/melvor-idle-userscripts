@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Melvor Idle - AutoFarm
 // @description Automates farming
-// @version     1.4
+// @version     1.5
 // @namespace   Visua
 // @match       https://*.melvoridle.com/*
 // @exclude     https://wiki.melvoridle.com*
@@ -84,6 +84,7 @@
             herbs: [...herbSeeds].sort((a, b) => b.level - a.level).map((s) => s.itemID),
             trees: [...treeSeeds].sort((a, b) => b.level - a.level).map((s) => s.itemID),
         };
+        const compostShopId = isItemInShop(CONSTANTS.item.Compost);
         let observer;
         let settings = {
             version: settingsVersion,
@@ -166,8 +167,8 @@
                     getSeedMasteryLevel(nextSeed) < 50 &&
                     getMasteryPoolProgress(CONSTANTS.skill.Farming) < masteryCheckpoints[1]
                 ) {
-                    if (!playerModifiers.freeCompost && gp > n * items[CONSTANTS.item.Compost].buysFor) {
-                        getCompost();
+                    if (!playerModifiers.freeCompost) {
+                        buyCompost();
                     }
                     addCompost(areaId, patchId, 5);
                 }
@@ -243,16 +244,13 @@
             Object.keys(utils.equipSwapState).forEach(slot => utils.equipSwapBack(slot));
         }
 
-        function getCompost() {
-            if (checkBankForItem(CONSTANTS.item.Compost)) {
-                const qty = getBankQty(CONSTANTS.item.Compost);
-                if (qty < 5) {
-                    buyQty = 5 - qty;
-                    buyShopItem('Materials', CONSTANTS.shop.materials.Compost, true);
+        function buyCompost() {
+            const qty = getBankQty(CONSTANTS.item.Compost);
+            if (qty < 5) {
+                buyQty = 5 - qty;
+                if (gp > buyQty * items[CONSTANTS.item.Compost].buysFor) {
+                    buyShopItem(Object.keys(SHOP)[compostShopId[0]], compostShopId[1], true);
                 }
-            } else {
-                buyQty = 5;
-                buyShopItem('Materials', CONSTANTS.shop.materials.Compost, true);
             }
         }
 
@@ -386,6 +384,7 @@
                 $(`#${id}-${patchType}-enabled`).change((event) => {
                     settings[patchType].enabled = event.currentTarget.checked;
                     saveSettings();
+                    loadFarmingArea(patchTypes.indexOf(patchType));
                 });
             }
             patchTypes.forEach(addStateChangeHandler);
@@ -517,7 +516,7 @@
                 }
 
                 return `
-            <div class="dropdown ${id}-seed-selector" style="position: absolute; right: 19px;">
+            <div class="dropdown ${id}-seed-selector">
                 <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-toggle="dropdown" style="padding-left: 8px; padding-right: 8px;"><span class="${id}-seed-selector-icon" style="margin-right: 6px; vertical-align: text-bottom; margin-top: 1px;"></span><span class="${id}-seed-selector-text"></span></button>
                 <div class="dropdown-menu font-size-sm" style="border-color: #6c757d; border-radius: 0.25rem; padding: 0.25rem 0;">
                     ${createDropdownItem(
@@ -559,11 +558,9 @@
                     button.find(`.${id}-seed-selector-icon`).html(selected.find('span').html());
                 }
 
-                $('#farming-area-container h3 ~ .block-options').remove();
-
                 $('#farming-area-container h3').each((patchId, e) => {
                     const header = $(e);
-                    if (header.siblings().length) {
+                    if (header.siblings(`.${id}-seed-selector`).length) {
                         // Seed selector already exists
                         return;
                     }
@@ -572,6 +569,12 @@
                         // Locked patch
                         return;
                     }
+
+                    if (settings[patchType].enabled) {
+                        // Remove game's seed picker
+                        header.siblings('.block-options').remove();
+                    }
+
                     const dropdown = $(createDropdown(patchType, patchId));
                     updateDropdownSelection(patchType, patchId, dropdown);
 
